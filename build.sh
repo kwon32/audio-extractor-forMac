@@ -15,6 +15,15 @@ swiftc "$SCRIPT_DIR/Sources/main.swift" \
   -framework UniformTypeIdentifiers \
   -O
 cp "$SCRIPT_DIR/Info.plist" "$APP_DIR/Contents/Info.plist"
+
+ICONSET="$(mktemp -d)/AppIcon.iconset"
+mkdir -p "$ICONSET"
+for size in 16 32 128 256 512; do
+  sips -z $size $size "$SCRIPT_DIR/Resources/AppIcon.png" --out "$ICONSET/icon_${size}x${size}.png" >/dev/null
+  sips -z $((size * 2)) $((size * 2)) "$SCRIPT_DIR/Resources/AppIcon.png" --out "$ICONSET/icon_${size}x${size}@2x.png" >/dev/null
+done
+iconutil -c icns "$ICONSET" -o "$APP_DIR/Contents/Resources/AppIcon.icns"
+rm -rf "${ICONSET:h}"
 xattr -cr "$APP_DIR"
 codesign --force --deep --sign - "$APP_DIR"
 
