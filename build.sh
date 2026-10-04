@@ -18,4 +18,4 @@ cp "$SCRIPT_DIR/Info.plist" "$APP_DIR/Contents/Info.plist"
 xattr -cr "$APP_DIR"
 codesign --force --deep --sign - "$APP_DIR"
 
-echo "빌두 완료: $APP_DIR"
+echo "빌드 완료: $APP_DIR"

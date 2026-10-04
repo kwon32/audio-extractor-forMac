@@ -9,10 +9,10 @@ enum Preset: Int, CaseIterable {
 
     var title: String {
         switch self {
-        case .transcription: return "전사용 MP3 (16kHz · 모노)"
-        case .highQualityMP3: return "고음질 MP3"
-        case .wav: return "WAV (무손실)"
-        case .audioCopy: return "원본 오디오 복사 (빠름)"
+        case .transcription: return "전사용 MP3 (16kHz · 모노)"
+        case .highQualityMP3: return "고음질 MP3"
+        case .wav: return "WAV (무손실)"
+        case .audioCopy: return "원본 오디오 복사 (빠름)"
         }
     }
 
@@ -44,7 +44,7 @@ protocol DropViewDelegate: AnyObject {
 
 final class DropView: NSView {
     weak var delegate: DropViewDelegate?
-    private let label = NSTextField(labelWithString: "여기에 영상이나 폴더룰 당겨 노ᄒ아요")
+    private let label = NSTextField(labelWithString: "여기에 영상이나 폴더를 끌어다 놓으세요")
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -97,11 +97,11 @@ final class ViewController: NSViewController, DropViewDelegate {
 
     private let fileList = NSTextView()
     private let presetPopup = NSPopUpButton()
-    private let statusLabel = NSTextField(labelWithString: "영상이나 폴더룰룰 추가하세요.")
+    private let statusLabel = NSTextField(labelWithString: "영상이나 폴더를 추가하세요.")
     private let progress = NSProgressIndicator()
-    private let convertButton = NSButton(title: "움성 추출", target: nil, action: nil)
-    private let clearButton = NSButton(title: "모두 지우기", target: nil, action: nil)
-    private let addButton = NSButton(title: "파일 추가", target: nil, action: nil)
+    private let convertButton = NSButton(title: "음성 추출", target: nil, action: nil)
+    private let clearButton = NSButton(title: "모두 지우기", target: nil, action: nil)
+    private let addButton = NSButton(title: "파일 추가", target: nil, action: nil)
 
     override func loadView() {
         view = NSView(frame: NSRect(x: 0, y: 0, width: 700, height: 560))
@@ -109,10 +109,10 @@ final class ViewController: NSViewController, DropViewDelegate {
     }
 
     private func setupUI() {
-        let title = NSTextField(labelWithString: "움성 추출기")
+        let title = NSTextField(labelWithString: "움성 추출기")
         title.font = .systemFont(ofSize: 26, weight: .bold)
 
-        let subtitle = NSTextField(labelWithString: "ffmpeg로 영상에서 오디오만 빠르게 추출합니다.")
+        let subtitle = NSTextField(labelWithString: "ffmpeg로 영상에서 오디오만 빠르게 추출합니다.")
         subtitle.textColor = .secondaryLabelColor
 
         let dropView = DropView()
@@ -137,7 +137,7 @@ final class ViewController: NSViewController, DropViewDelegate {
         scroll.borderType = .bezelBorder
         scroll.translatesAutoresizingMaskIntoConstraints = false
 
-        let presetLabel = NSTextField(labelWithString: "추출 형식")
+        let presetLabel = NSTextField(labelWithString: "추출 형식")
         presetLabel.font = .systemFont(ofSize: 13, weight: .semibold)
         Preset.allCases.forEach { presetPopup.addItem(withTitle: $0.title) }
         presetPopup.selectItem(at: 0)
@@ -196,7 +196,7 @@ final class ViewController: NSViewController, DropViewDelegate {
         panel.allowsMultipleSelection = true
         panel.canChooseDirectories = true
         panel.canChooseFiles = true
-        panel.prompt = "추가"
+        panel.prompt = "추가"
         panel.begin { [weak self] response in
             if response == .OK { self?.add(urls: panel.urls) }
         }
@@ -230,14 +230,14 @@ final class ViewController: NSViewController, DropViewDelegate {
     private func refreshFileList() {
         fileList.string = files.enumerated().map { "\($0.offset + 1). \($0.element.lastPathComponent)" }.joined(separator: "\n")
         convertButton.isEnabled = !files.isEmpty
-        statusLabel.stringValue = files.isEmpty ? "영상이나 폴더룰룰 추가하세요." : "\(files.count)개 파일 선캑됨 · 원본과 같은 폴더에 저장"
+        statusLabel.stringValue = files.isEmpty ? "영상이나 폴더를 추가하세요." : "\(files.count)개 파일 선택됨 · 원본과 같은 폴더에 저장"
     }
 
     @objc private func convertOrCancel() {
         if isConverting {
             isConverting = false
             currentProcess?.terminate()
-            statusLabel.stringValue = "추출을 추소화눈다려고 있숩니다…"
+            statusLabel.stringValue = "추출을 취소하는 중입니다…"
         } else {
             startConversion()
         }
@@ -262,7 +262,7 @@ final class ViewController: NSViewController, DropViewDelegate {
 
     private func startConversion() {
         guard let ffmpeg = ffmpegURL() else {
-            showAlert(title: "ffmpeg가 없습니다", message: "Homebrew에서 brew install ffmpeg로 설치해 주세요.")
+            showAlert(title: "ffmpeg가 없습니다", message: "Homebrew에서 brew install ffmpeg로 설치해 주세요.")
             return
         }
         guard let preset = Preset(rawValue: presetPopup.indexOfSelectedItem) else { return }
@@ -270,7 +270,7 @@ final class ViewController: NSViewController, DropViewDelegate {
         isConverting = true
         setControlsEnabled(false)
         convertButton.isEnabled = true
-        convertButton.title = "추소"
+        convertButton.title = "취소"
         progress.maxValue = Double(files.count)
         progress.doubleValue = 0
         let inputs = files
@@ -328,20 +328,20 @@ final class ViewController: NSViewController, DropViewDelegate {
     private func finishConversion(successes: [URL], failures: [String], cancelled: Bool) {
         isConverting = false
         setControlsEnabled(true)
-        convertButton.title = "움성 추출"
+        convertButton.title = "음성 추출"
         convertButton.isEnabled = !files.isEmpty
 
         if cancelled {
-            statusLabel.stringValue = "추소됨 · 완료 \(successes.count)개"
+            statusLabel.stringValue = "취소됨 · 완료 \(successes.count)개"
         } else if failures.isEmpty {
-            statusLabel.stringValue = "완료 · \(successes.count)개 파일 추출 완료"
+            statusLabel.stringValue = "완료 · \(successes.count)개 파일 추출 완료"
             NSSound(named: "Glass")?.play()
             if let first = successes.first {
                 NSWorkspace.shared.activateFileViewerSelecting(successes.isEmpty ? [first] : successes)
             }
         } else {
-            statusLabel.stringValue = "완료 \(successes.count)개 · 실패 \(failures.count)개"
-            showAlert(title: "일부 파일을 처리하지 못했숩니다", message: failures.joined(separator: "\n"))
+            statusLabel.stringValue = "완료 \(successes.count)개 · 실패 \(failures.count)개"
+            showAlert(title: "일부 파일을 처리하지 못했습니다", message: failures.joined(separator: "\n"))
         }
     }
 
@@ -366,7 +366,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         let controller = ViewController()
         window = NSWindow(contentViewController: controller)
-        window.title = "움성 추출기"
+        window.title = "움성 추출기"
         window.styleMask = [.titled, .closable, .miniaturizable]
         window.center()
         window.makeKeyAndOrderFront(nil)

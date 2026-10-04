@@ -6,8 +6,8 @@
     <key>CFBundleExecutable</key><string>AudioExtractor</string>
     <key>CFBundleIdentifier</key><string>local.kwon.audioextractor</string>
     <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
-    <key>CFBundleName</key><string>움성 추출기</string>
-    <key>CFBundleDisplayName</key><string>움성 추출기</string>
+    <key>CFBundleName</key><string>움성 추출기</string>
+    <key>CFBundleDisplayName</key><string>움성 추출기</string>
     <key>CFBundlePackageType</key><string>APPL</string>
     <key>CFBundleShortVersionString</key><string>1.0</string>
     <key>CFBundleVersion</key><string>1</string>
