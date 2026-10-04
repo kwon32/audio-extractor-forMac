@@ -170,8 +170,10 @@ final class ViewController: NSViewController, DropViewDelegate {
         stack.orientation = .vertical
         stack.alignment = .leading
         stack.spacing = 12
+        stack.distribution = .fill
         stack.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(stack)
+        scroll.setContentHuggingPriority(.defaultLow, for: .vertical)
 
         NSLayoutConstraint.activate([
             stack.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 24),
@@ -182,7 +184,7 @@ final class ViewController: NSViewController, DropViewDelegate {
             dropView.heightAnchor.constraint(equalToConstant: 90),
             buttonRow.widthAnchor.constraint(equalTo: stack.widthAnchor),
             scroll.widthAnchor.constraint(equalTo: stack.widthAnchor),
-            scroll.heightAnchor.constraint(equalToConstant: 180),
+            scroll.heightAnchor.constraint(greaterThanOrEqualToConstant: 180),
             presetRow.widthAnchor.constraint(equalTo: stack.widthAnchor),
             progress.widthAnchor.constraint(equalTo: stack.widthAnchor),
             bottomRow.widthAnchor.constraint(equalTo: stack.widthAnchor)
@@ -191,7 +193,7 @@ final class ViewController: NSViewController, DropViewDelegate {
 
     func dropView(didReceive urls: [URL]) { add(urls: urls) }
 
-    @objc private func addFiles() {
+    @objc func addFiles() {
         let panel = NSOpenPanel()
         panel.allowsMultipleSelection = true
         panel.canChooseDirectories = true
@@ -202,7 +204,7 @@ final class ViewController: NSViewController, DropViewDelegate {
         }
     }
 
-    @objc private func clearFiles() {
+    @objc func clearFiles() {
         guard !isConverting else { return }
         files.removeAll()
         refreshFileList()
@@ -364,16 +366,79 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var window: NSWindow!
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        setupMainMenu()
         let controller = ViewController()
         window = NSWindow(contentViewController: controller)
         window.title = "움성 추출기"
-        window.styleMask = [.titled, .closable, .miniaturizable]
+        window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
+        window.contentMinSize = NSSize(width: 560, height: 560)
         window.center()
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
+
+    private func setupMainMenu() {
+        let appName = "움성 추출기"
+        let mainMenu = NSMenu()
+
+        let appMenu = addSubmenu(to: mainMenu, title: appName)
+        appMenu.addItem(withTitle: "\(appName)에 관하여", action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)), keyEquivalent: "")
+        appMenu.addItem(.separator())
+        let servicesItem = appMenu.addItem(withTitle: "서비스", action: nil, keyEquivalent: "")
+        let servicesMenu = NSMenu(title: "서비스")
+        servicesItem.submenu = servicesMenu
+        NSApp.servicesMenu = servicesMenu
+        appMenu.addItem(.separator())
+        appMenu.addItem(withTitle: "\(appName) 가리기", action: #selector(NSApplication.hide(_:)), keyEquivalent: "h")
+        appMenu.addItem(withTitle: "기타 가리기", action: #selector(NSApplication.hideOtherApplications(_:)), keyEquivalent: "h")
+            .keyEquivalentModifierMask = [.command, .option]
+        appMenu.addItem(withTitle: "모두 보기", action: #selector(NSApplication.unhideAllApplications(_:)), keyEquivalent: "")
+        appMenu.addItem(.separator())
+        appMenu.addItem(withTitle: "\(appName) 종료", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+
+        let fileMenu = addSubmenu(to: mainMenu, title: "파일")
+        fileMenu.addItem(withTitle: "파일 추가…", action: #selector(ViewController.addFiles), keyEquivalent: "o")
+        fileMenu.addItem(withTitle: "모두 지우기", action: #selector(ViewController.clearFiles), keyEquivalent: "\u{8}")
+        fileMenu.addItem(.separator())
+        fileMenu.addItem(withTitle: "윈도우 닫기", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
+
+        let editMenu = addSubmenu(to: mainMenu, title: "편집")
+        editMenu.addItem(withTitle: "실행 취소", action: Selector(("undo:")), keyEquivalent: "z")
+        editMenu.addItem(withTitle: "실행 복귀", action: Selector(("redo:")), keyEquivalent: "z")
+            .keyEquivalentModifierMask = [.command, .shift]
+        editMenu.addItem(.separator())
+        editMenu.addItem(withTitle: "오려두기", action: #selector(NSText.cut(_:)), keyEquivalent: "x")
+        editMenu.addItem(withTitle: "복사하기", action: #selector(NSText.copy(_:)), keyEquivalent: "c")
+        editMenu.addItem(withTitle: "붙여넣기", action: #selector(NSText.paste(_:)), keyEquivalent: "v")
+        editMenu.addItem(withTitle: "모두 선택", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
+
+        let viewMenu = addSubmenu(to: mainMenu, title: "보기")
+        viewMenu.addItem(withTitle: "전체 화면 시작", action: #selector(NSWindow.toggleFullScreen(_:)), keyEquivalent: "f")
+            .keyEquivalentModifierMask = [.command, .control]
+
+        let windowMenu = addSubmenu(to: mainMenu, title: "윈도우")
+        windowMenu.addItem(withTitle: "최소화", action: #selector(NSWindow.performMiniaturize(_:)), keyEquivalent: "m")
+        windowMenu.addItem(withTitle: "확대/축소", action: #selector(NSWindow.performZoom(_:)), keyEquivalent: "")
+        windowMenu.addItem(.separator())
+        windowMenu.addItem(withTitle: "모두 앞으로 가져오기", action: #selector(NSApplication.arrangeInFront(_:)), keyEquivalent: "")
+        NSApp.windowsMenu = windowMenu
+
+        let helpMenu = addSubmenu(to: mainMenu, title: "도움말")
+        NSApp.helpMenu = helpMenu
+
+        NSApp.mainMenu = mainMenu
+    }
+
+    @discardableResult
+    private func addSubmenu(to menu: NSMenu, title: String) -> NSMenu {
+        let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
+        let submenu = NSMenu(title: title)
+        item.submenu = submenu
+        menu.addItem(item)
+        return submenu
+    }
 }
 
 let app = NSApplication.shared
