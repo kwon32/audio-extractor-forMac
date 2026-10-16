@@ -2,7 +2,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="${0:A:h}"
-APP_NAME="AudioExtractor"
+APP_NAME="움성추출기"
 INSTALL_DIR="/Users/kwon/Applications"
 APP_DIR="$INSTALL_DIR/$APP_NAME.app"
 
