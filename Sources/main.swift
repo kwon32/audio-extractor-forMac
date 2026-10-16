@@ -98,6 +98,7 @@ final class ViewController: NSViewController, DropViewDelegate {
     private let fileScroll = NSTextView.scrollableTextView()
     private var fileList: NSTextView { fileScroll.documentView as! NSTextView }
     private let presetPopup = NSPopUpButton()
+    private let splitCheckbox = NSButton(checkboxWithTitle: "1시간 단위로 나누기", target: nil, action: nil)
     private let statusLabel = NSTextField(labelWithString: "영상·음성 파일이나 폴더를 추가하세요.")
     private let progress = NSProgressIndicator()
     private let convertButton = NSButton(title: "음성 추출", target: nil, action: nil)
@@ -141,7 +142,9 @@ final class ViewController: NSViewController, DropViewDelegate {
         Preset.allCases.forEach { presetPopup.addItem(withTitle: $0.title) }
         presetPopup.selectItem(at: 0)
 
-        let presetRow = NSStackView(views: [presetLabel, presetPopup])
+        splitCheckbox.state = .on
+
+        let presetRow = NSStackView(views: [presetLabel, presetPopup, splitCheckbox])
         presetRow.orientation = .horizontal
         presetRow.spacing = 12
         presetPopup.setContentHuggingPriority(.defaultLow, for: .horizontal)
@@ -261,12 +264,47 @@ final class ViewController: NSViewController, DropViewDelegate {
         return candidate
     }
 
+    /// 분할 저장용 이름. `이름.확장자`와 `이름 01.확장자` 같은 조각이 모두 없는 이름을 고른다.
+    private func uniqueSegmentBase(for input: URL, preset: Preset) -> String {
+        let base = input.deletingPathExtension().lastPathComponent
+        let directory = input.deletingLastPathComponent()
+        let existing = Set((try? FileManager.default.contentsOfDirectory(atPath: directory.path)) ?? [])
+        let ext = "." + preset.outputExtension
+        func isTaken(_ name: String) -> Bool {
+            existing.contains(name + ext) || existing.contains { file in
+                guard file.hasPrefix(name + " "), file.hasSuffix(ext) else { return false }
+                let number = file.dropFirst(name.count + 1).dropLast(ext.count)
+                return !number.isEmpty && number.allSatisfy(\.isNumber)
+            }
+        }
+        var candidate = base
+        var suffix = 2
+        while isTaken(candidate) {
+            candidate = "\(base) \(suffix)"
+            suffix += 1
+        }
+        return candidate
+    }
+
+    private func segmentURLs(directory: URL, base: String, preset: Preset) -> [URL] {
+        var urls: [URL] = []
+        var index = 1
+        while true {
+            let url = directory.appendingPathComponent(String(format: "%@ %02d", base, index)).appendingPathExtension(preset.outputExtension)
+            guard FileManager.default.fileExists(atPath: url.path) else { break }
+            urls.append(url)
+            index += 1
+        }
+        return urls
+    }
+
     private func startConversion() {
         guard let ffmpeg = ffmpegURL() else {
             showAlert(title: "ffmpeg가 없습니다", message: "Homebrew에서 brew install ffmpeg로 설치해 주세요.")
             return
         }
         guard let preset = Preset(rawValue: presetPopup.indexOfSelectedItem) else { return }
+        let splitByHour = splitCheckbox.state == .on
 
         isConverting = true
         setControlsEnabled(false)
@@ -283,14 +321,32 @@ final class ViewController: NSViewController, DropViewDelegate {
 
             for (index, input) in inputs.enumerated() {
                 if !self.isConverting { break }
-                let output = self.uniqueOutputURL(for: input, preset: preset)
+                let directory = input.deletingLastPathComponent()
+                let segmentBase = splitByHour ? self.uniqueSegmentBase(for: input, preset: preset) : nil
+                let output = segmentBase.map { directory.appendingPathComponent($0).appendingPathExtension(preset.outputExtension) }
+                    ?? self.uniqueOutputURL(for: input, preset: preset)
+                let outputArguments: [String]
+                if let segmentBase {
+                    let pattern = segmentBase.replacingOccurrences(of: "%", with: "%%") + " %02d." + preset.outputExtension
+                    outputArguments = ["-f", "segment", "-segment_time", "3600", "-segment_start_number", "1", "-reset_timestamps", "1",
+                                       directory.appendingPathComponent(pattern).path]
+                } else {
+                    outputArguments = [output.path]
+                }
+                let removeOutputs = {
+                    if let segmentBase {
+                        self.segmentURLs(directory: directory, base: segmentBase, preset: preset).forEach { try? FileManager.default.removeItem(at: $0) }
+                    } else {
+                        try? FileManager.default.removeItem(at: output)
+                    }
+                }
                 DispatchQueue.main.async {
                     self.statusLabel.stringValue = "\(index + 1)/\(inputs.count)  \(input.lastPathComponent)"
                 }
 
                 let process = Process()
                 process.executableURL = ffmpeg
-                process.arguments = ["-hide_banner", "-nostdin", "-y", "-i", input.path] + preset.arguments + [output.path]
+                process.arguments = ["-hide_banner", "-nostdin", "-y", "-i", input.path] + preset.arguments + outputArguments
                 let errorPipe = Pipe()
                 process.standardError = errorPipe
                 process.standardOutput = FileHandle.nullDevice
@@ -304,15 +360,25 @@ final class ViewController: NSViewController, DropViewDelegate {
                     process.waitUntilExit()
                     errorPipe.fileHandleForReading.readabilityHandler = nil
                     if process.terminationStatus == 0 {
-                        successes.append(output)
+                        if let segmentBase {
+                            let segments = self.segmentURLs(directory: directory, base: segmentBase, preset: preset)
+                            // 1시간이 안 돼 한 조각만 나왔으면 번호 없이 원래 이름으로 저장
+                            if segments.count == 1, (try? FileManager.default.moveItem(at: segments[0], to: output)) != nil {
+                                successes.append(output)
+                            } else {
+                                successes.append(contentsOf: segments)
+                            }
+                        } else {
+                            successes.append(output)
+                        }
                     } else if self.isConverting {
                         failures.append(input.lastPathComponent)
-                        try? FileManager.default.removeItem(at: output)
+                        removeOutputs()
                     }
                 } catch {
                     errorPipe.fileHandleForReading.readabilityHandler = nil
                     failures.append(input.lastPathComponent)
-                    try? FileManager.default.removeItem(at: output)
+                    removeOutputs()
                 }
 
                 DispatchQueue.main.async { self.progress.doubleValue = Double(index + 1) }
@@ -335,7 +401,7 @@ final class ViewController: NSViewController, DropViewDelegate {
         if cancelled {
             statusLabel.stringValue = "취소됨 · 완료 \(successes.count)개"
         } else if failures.isEmpty {
-            statusLabel.stringValue = "완료 · \(successes.count)개 파일 추출 완료"
+            statusLabel.stringValue = "완료 · \(successes.count)개 파일 저장"
             NSSound(named: "Glass")?.play()
             if let first = successes.first {
                 NSWorkspace.shared.activateFileViewerSelecting(successes.isEmpty ? [first] : successes)
@@ -350,6 +416,7 @@ final class ViewController: NSViewController, DropViewDelegate {
         addButton.isEnabled = enabled
         clearButton.isEnabled = enabled
         presetPopup.isEnabled = enabled
+        splitCheckbox.isEnabled = enabled
     }
 
     private func showAlert(title: String, message: String) {
