@@ -44,7 +44,7 @@ protocol DropViewDelegate: AnyObject {
 
 final class DropView: NSView {
     weak var delegate: DropViewDelegate?
-    private let label = NSTextField(labelWithString: "여기에 영상이나 폴더를 끌어다 놓으세요")
+    private let label = NSTextField(labelWithString: "여기에 영상·음성 파일이나 폴더를 끌어다 놓으세요")
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -90,14 +90,15 @@ final class DropView: NSView {
 }
 
 final class ViewController: NSViewController, DropViewDelegate {
-    private let supportedExtensions: Set<String> = ["mp4", "mov", "mkv", "avi", "webm", "m4v", "flv", "wmv", "mts", "m2ts"]
+    private let supportedExtensions: Set<String> = ["mp4", "mov", "mkv", "avi", "webm", "m4v", "flv", "wmv", "mts", "m2ts", "m4a", "mp3", "wav", "aac", "flac", "ogg", "opus", "wma", "aiff", "aif"]
     private var files: [URL] = []
     private var currentProcess: Process?
     private var isConverting = false
 
-    private let fileList = NSTextView()
+    private let fileScroll = NSTextView.scrollableTextView()
+    private var fileList: NSTextView { fileScroll.documentView as! NSTextView }
     private let presetPopup = NSPopUpButton()
-    private let statusLabel = NSTextField(labelWithString: "영상이나 폴더를 추가하세요.")
+    private let statusLabel = NSTextField(labelWithString: "영상·음성 파일이나 폴더를 추가하세요.")
     private let progress = NSProgressIndicator()
     private let convertButton = NSButton(title: "음성 추출", target: nil, action: nil)
     private let clearButton = NSButton(title: "모두 지우기", target: nil, action: nil)
@@ -112,7 +113,7 @@ final class ViewController: NSViewController, DropViewDelegate {
         let title = NSTextField(labelWithString: "움성 추출기")
         title.font = .systemFont(ofSize: 26, weight: .bold)
 
-        let subtitle = NSTextField(labelWithString: "ffmpeg로 영상에서 오디오만 빠르게 추출합니다.")
+        let subtitle = NSTextField(labelWithString: "ffmpeg로 영상에서 오디오를 뽑거나 음성 파일을 변환합니다.")
         subtitle.textColor = .secondaryLabelColor
 
         let dropView = DropView()
@@ -131,9 +132,7 @@ final class ViewController: NSViewController, DropViewDelegate {
         fileList.isEditable = false
         fileList.font = .monospacedSystemFont(ofSize: 12, weight: .regular)
         fileList.textContainerInset = NSSize(width: 8, height: 8)
-        let scroll = NSScrollView()
-        scroll.documentView = fileList
-        scroll.hasVerticalScroller = true
+        let scroll = fileScroll
         scroll.borderType = .bezelBorder
         scroll.translatesAutoresizingMaskIntoConstraints = false
 
@@ -232,7 +231,7 @@ final class ViewController: NSViewController, DropViewDelegate {
     private func refreshFileList() {
         fileList.string = files.enumerated().map { "\($0.offset + 1). \($0.element.lastPathComponent)" }.joined(separator: "\n")
         convertButton.isEnabled = !files.isEmpty
-        statusLabel.stringValue = files.isEmpty ? "영상이나 폴더를 추가하세요." : "\(files.count)개 파일 선택됨 · 원본과 같은 폴더에 저장"
+        statusLabel.stringValue = files.isEmpty ? "영상·음성 파일이나 폴더를 추가하세요." : "\(files.count)개 파일 선택됨 · 원본과 같은 폴더에 저장"
     }
 
     @objc private func convertOrCancel() {
